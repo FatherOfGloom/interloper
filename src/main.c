@@ -320,11 +320,11 @@ LRESULT CALLBACK win32_on_main_window(WindowHandle handle, UINT msg, WPARAM wp, 
                 });
 
                 for (int i = 0; i < global_context.hotkey_table.len; ++i) {
-                    HotkeyMapping mapping = *((HotkeyMapping*)global_context.hotkey_table.items + i);
-                    if (mapping.hotkey == mapped_hotkey) {
-                        vec_free(&mapping.file_path.v);
-                        mapping.file_path = owned_file_path;
-                        mapping.file_name = owned_file_name_slice; 
+                    HotkeyMapping* mapping = (HotkeyMapping*)global_context.hotkey_table.items + i;
+                    if (mapping->hotkey == mapped_hotkey) {
+                        vec_free(&mapping->file_path.v);
+                        mapping->file_path = owned_file_path;
+                        mapping->file_name = owned_file_name_slice; 
                         return result;
                     }
                 }
