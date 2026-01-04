@@ -40,7 +40,7 @@ void str_utf16_append(StrUtf16* s, wchar_t* wcstr) {
 
 StrUtf16 str_utf16_from_slice(Slice wcstr) {
     StrUtf16 s = {0};
-    s.v = vec_with_cap(wcstr.len * sizeof(wchar_t) + sizeof(wchar_t));
+    s.v = vec_with_cap(sizeof(wchar_t), wcstr.len + 1);
     vec_append(&s.v, sizeof(wchar_t), wcstr.ptr, wcstr.len);
     return s;
 }
@@ -312,8 +312,6 @@ LRESULT CALLBACK win32_on_main_window(WindowHandle handle, UINT msg, WPARAM wp, 
                 wchar_t fg_file_path[MAX_PATH] = {0};
                 DWORD fg_file_path_len = sizeof(fg_file_path);
                 win32_get_exe_file_path(foreground_handle, fg_file_path, &fg_file_path_len);
-
-                wprintf(L"PRE Registered hotkey ALT + %c for '%s'\n", mapped_hotkey, fg_file_path);
 
                 StrUtf16 owned_file_path = str_utf16_from_slice((Slice){.ptr = fg_file_path, .len = fg_file_path_len});
                 Slice owned_file_name_slice = extract_file_name_utf16((Slice){

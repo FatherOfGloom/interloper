@@ -21,6 +21,6 @@ typedef struct Vec {
 void vec_append(Vec* v, size_t item_size, const void* new_items, size_t count);
 void vec_free(Vec* v);
 int vec_realloc(Vec* v, size_t item_size, size_t new_v_cap);
-Vec vec_with_cap(size_t cap);
+Vec vec_with_cap(size_t item_size, size_t cap);
 
 #endif // VEC_H_

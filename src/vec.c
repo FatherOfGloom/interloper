@@ -36,9 +36,9 @@ void vec_free(Vec* v) {
     v->capacity = 0;
 }
 
-Vec vec_with_cap(size_t cap) {
+Vec vec_with_cap(size_t item_size, size_t cap) {
     Vec v = {0};
-    (void)vec_realloc(&v, 1, cap);
+    (void)vec_realloc(&v, item_size, cap);
     return v;
 }
 
