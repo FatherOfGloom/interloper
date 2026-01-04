@@ -40,7 +40,7 @@ void str_utf16_append(StrUtf16* s, wchar_t* wcstr) {
 
 StrUtf16 str_utf16_from_slice(Slice wcstr) {
     StrUtf16 s = {0};
-    s.v = vec_with_cap(wcstr.len + sizeof(wchar_t));
+    s.v = vec_with_cap(wcstr.len * sizeof(wchar_t) + sizeof(wchar_t));
     vec_append(&s.v, sizeof(wchar_t), wcstr.ptr, wcstr.len);
     return s;
 }
@@ -88,7 +88,8 @@ int CALLBACK win32_on_enum_windows(WindowHandle handle, LPARAM lParam) {
     Windows* list = &ctx->w;
 
     // TODO: arena alloc
-    Window w = {.handle = handle, .file_path = {0}, .file_path_len = MAX_PATH};
+    Window* w = &list->items[list->len + 1];
+    *w = (Window){.handle = handle, .file_path = {0}, .file_path_len = MAX_PATH};
 
     if (!IsWindowVisible(handle)) {
         return 1;
@@ -139,13 +140,14 @@ int CALLBACK win32_on_enum_windows(WindowHandle handle, LPARAM lParam) {
         return 1;
     }
 
-    win32_get_exe_file_path(w.handle, w.file_path, &w.file_path_len);
+    win32_get_exe_file_path(w->handle, w->file_path, &w->file_path_len);
 
-    if (w.file_path_len > 0) {
-        w.file_name = extract_file_name_utf16((Slice){.ptr = w.file_path, .len = w.file_path_len});
+    if (w->file_path_len > 0) {
+        w->file_name = extract_file_name_utf16((Slice){.ptr = w->file_path, .len = w->file_path_len});
     }
 
-    list->items[list->len++] = w;
+    // list->items[list->len++] = w;
+    list->len += 1;
 
     return 1;
 }
@@ -310,26 +312,29 @@ LRESULT CALLBACK win32_on_main_window(WindowHandle handle, UINT msg, WPARAM wp, 
                 wchar_t fg_file_path[MAX_PATH] = {0};
                 DWORD fg_file_path_len = sizeof(fg_file_path);
                 win32_get_exe_file_path(foreground_handle, fg_file_path, &fg_file_path_len);
-                Slice fg_file_path_slice = {.ptr = fg_file_path, .len = fg_file_path_len};
 
                 wprintf(L"PRE Registered hotkey ALT + %c for '%s'\n", mapped_hotkey, fg_file_path);
-                wprintf(L"PRE for '%s' '%d'\n", mapped_hotkey, fg_file_path_slice.ptr, fg_file_path_slice.len);
+
+                StrUtf16 owned_file_path = str_utf16_from_slice((Slice){.ptr = fg_file_path, .len = fg_file_path_len});
+                Slice owned_file_name_slice = extract_file_name_utf16((Slice){
+                    .ptr = owned_file_path.v.items, 
+                    .len = owned_file_path.v.len
+                });
 
                 for (int i = 0; i < global_context.hotkey_table.len; ++i) {
                     HotkeyMapping mapping = *((HotkeyMapping*)global_context.hotkey_table.items + i);
                     if (mapping.hotkey == mapped_hotkey) {
                         vec_free(&mapping.file_path.v);
-                        mapping.file_path = str_utf16_from_slice(fg_file_path_slice);
-                        mapping.file_name = extract_file_name_utf16(fg_file_path_slice);
-
+                        mapping.file_path = owned_file_path;
+                        mapping.file_name = owned_file_name_slice; 
                         return result;
                     }
                 }
 
                 if (RegisterHotKey(handle, HOTKEY_ID_BASE_GOTO + global_context.hotkey_table.len, MOD_ALT, mapped_hotkey)) {
                     HotkeyMapping new_mapping = {
-                        .file_name = extract_file_name_utf16(fg_file_path_slice),
-                        .file_path = str_utf16_from_slice(fg_file_path_slice),
+                        .file_name = owned_file_name_slice,
+                        .file_path = owned_file_path,
                         .hotkey = mapped_hotkey,
                     };
                     wprintf(L"Registered hotkey ALT + %c for '%s'\n", mapped_hotkey, new_mapping.file_path.v.items);
