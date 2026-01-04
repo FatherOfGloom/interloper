@@ -1,0 +1,13 @@
+---
+BasedOnStyle: Google
+UseTab: Never
+IndentWidth: 4
+TabWidth: 4
+BreakBeforeBraces: Attach
+AllowShortIfStatementsOnASingleLine: true
+IndentCaseLabels: true
+IndentPPDirectives: BeforeHash
+PPIndentWidth: 2
+AccessModifierOffset: -4
+ColumnLimit: 88
+...
