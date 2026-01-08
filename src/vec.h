@@ -12,6 +12,7 @@ typedef struct Vec {
     void* items;
     size_t len;
     size_t capacity;
+    size_t init_capacity;
 } Vec;
 
 #define vec_is_empty(v) ((v)->len == 0)
@@ -22,5 +23,6 @@ void vec_append(Vec* v, size_t item_size, const void* new_items, size_t count);
 void vec_free(Vec* v);
 int vec_realloc(Vec* v, size_t item_size, size_t new_v_cap);
 Vec vec_with_cap(size_t item_size, size_t cap);
+void vec_reset(Vec* v);
 
 #endif // VEC_H_

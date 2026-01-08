@@ -3,7 +3,7 @@
 void vec_append(Vec* v, size_t item_size, const void* new_items, size_t count) {
     if (v->len + count > v->capacity) {
         if (v->capacity == 0) {
-            v->capacity = VEC_INIT_CAPACITY;
+            v->capacity = v->init_capacity > 0 ? v->init_capacity : VEC_INIT_CAPACITY;
         }
 
         while (v->len + count > v->capacity) {
@@ -53,4 +53,8 @@ int vec_realloc(Vec* v, size_t item_size, size_t new_v_cap) {
     (void)memset(v->items + v->len, 0, (v->capacity - v->len) * item_size);
 
     return 1;
+}
+
+void vec_reset(Vec* v) {
+    v->len = 0;
 }

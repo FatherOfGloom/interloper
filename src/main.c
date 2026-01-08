@@ -7,6 +7,9 @@
 #include <shlobj.h>
 #include <stdint.h>
 
+#define ARENA_IMPLEMENTATION
+#define ARENA_LOG
+#include "arena.h"
 #include "vec.h"
 
 typedef struct Slice {
@@ -18,15 +21,13 @@ typedef HWND WindowHandle;
 
 typedef struct Window {
     WindowHandle handle;
-    // TODO: arena alloc
-    wchar_t file_path[MAX_PATH];
+    wchar_t* file_path;
     Slice file_name;
     DWORD file_path_len;
 } Window;
 
 typedef struct Windows {
-    // TODO: arena alloc
-    Window items[128];
+    Window* items;
     size_t len;
 } Windows;
 
@@ -46,10 +47,10 @@ StrUtf16 str_utf16_from_slice(Slice wcstr) {
 }
 
 typedef struct Context {
-    Windows w;
+    Vec windows;
     Vec hotkey_table;
     StrUtf16 appdata_path;
-    // TODO: owned temp_arena
+    Arena temp_arena;
 } Context; 
 
 Slice extract_file_name_utf16(Slice file_path_utf16) {
@@ -85,11 +86,8 @@ void win32_get_exe_file_path(WindowHandle handle, wchar_t* file_path, DWORD* fil
 
 int CALLBACK win32_on_enum_windows(WindowHandle handle, LPARAM lParam) {
     Context* ctx = (Context*)lParam;
-    Windows* list = &ctx->w;
 
-    // TODO: arena alloc
-    Window* w = &list->items[list->len + 1];
-    *w = (Window){.handle = handle, .file_path = {0}, .file_path_len = MAX_PATH};
+    // *w = (Window){.handle = handle, .file_path = {0}, .file_path_len = MAX_PATH};
 
     if (!IsWindowVisible(handle)) {
         return 1;
@@ -140,14 +138,20 @@ int CALLBACK win32_on_enum_windows(WindowHandle handle, LPARAM lParam) {
         return 1;
     }
 
-    win32_get_exe_file_path(w->handle, w->file_path, &w->file_path_len);
+    Vec* windows = &ctx->windows;
+    Window w = {0};
 
-    if (w->file_path_len > 0) {
-        w->file_name = extract_file_name_utf16((Slice){.ptr = w->file_path, .len = w->file_path_len});
+    w.file_path_len = MAX_PATH;
+    w.handle = handle;
+    w.file_path = arena_alloc(&ctx->temp_arena, sizeof(wchar_t) * w.file_path_len);
+
+    win32_get_exe_file_path(w.handle, w.file_path, &w.file_path_len);
+
+    if (w.file_path_len > 0) {
+        w.file_name = extract_file_name_utf16((Slice){.ptr = w.file_path, .len = w.file_path_len});
     }
 
-    // list->items[list->len++] = w;
-    list->len += 1;
+    vec_push(windows, sizeof(Window), &w);
 
     return 1;
 }
@@ -301,6 +305,12 @@ int win32_register_hotkey(WindowHandle h, Vec* table, int idx, uint32_t modifier
 
 Context global_context = {0};
 
+void win32_enum_windows(Context* ctx) {
+    arena_reset(&ctx->temp_arena);
+    vec_reset(&ctx->windows);
+    EnumWindows(win32_on_enum_windows, (LPARAM)ctx);
+}
+
 LRESULT CALLBACK win32_on_main_window(WindowHandle handle, UINT msg, WPARAM wp, LPARAM lp) {
     LRESULT result = 0;
     switch (msg) {
@@ -343,13 +353,12 @@ LRESULT CALLBACK win32_on_main_window(WindowHandle handle, UINT msg, WPARAM wp, 
                 assert(0 <= hotkey_id && hotkey_id < global_context.hotkey_table.len);
                 HotkeyMapping mapping = *((HotkeyMapping*)global_context.hotkey_table.items + hotkey_id);
 
-                global_context.w.len = 0;
-                EnumWindows(win32_on_enum_windows, (LPARAM)&global_context);
+                win32_enum_windows(&global_context);
 
                 WindowHandle dst_window_handle = NULL;
 
-                for (int i = 0; i < global_context.w.len; ++i) {
-                    Window w = global_context.w.items[i];
+                for (int i = 0; i < global_context.windows.len; ++i) {
+                    Window w = *((Window*)global_context.windows.items + i);
 
                     if (w.file_name.ptr && wcscmp(w.file_name.ptr, mapping.file_name.ptr) == 0) {
                         dst_window_handle = w.handle;
@@ -381,7 +390,11 @@ LRESULT CALLBACK win32_on_main_window(WindowHandle handle, UINT msg, WPARAM wp, 
     return result;
 }
 
-// TODO: rewrite on_enum_windows with arena
+void context_init(Context* ctx) {
+    ctx->windows.init_capacity = 32;
+    ctx->hotkey_table.init_capacity = 10;
+}
+
 // TODO: save mapping to a file
 int WINAPI WinMain(HINSTANCE this_instance, HINSTANCE prev_instance, LPSTR command_line, int show_code) {
 
@@ -393,6 +406,8 @@ int WINAPI WinMain(HINSTANCE this_instance, HINSTANCE prev_instance, LPSTR comma
     if (!RegisterClassA(&wc)) {
         panic("OOOOPS\n");
     }
+
+    context_init(&global_context);
 
     WindowHandle hotkey_window_handle = CreateWindowA(wc.lpszClassName, "", 0, 0, 0, 0, 0, HWND_MESSAGE, NULL, this_instance, NULL);
 
@@ -469,7 +484,8 @@ int WINAPI WinMain(HINSTANCE this_instance, HINSTANCE prev_instance, LPSTR comma
         panic("SHGetKnownFolderPath failed: 0x%08X\n", hr);
     };
 
-    printf("sizeof(Context): %d\n", sizeof(Context));
+    // printf("sizeof(Context): %d\n", sizeof(Context));
+    // printf("sizeof(HotkeyMapping): %d\n", sizeof(HotkeyMapping));
 
     MSG msg = {0};
 
